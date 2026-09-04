@@ -27,10 +27,22 @@ export function formatMessageTime(isoString: string): string {
 }
 
 /**
- * Decodes common HTML entities returned by the API (e.g. &#39; -> ')
+ * Decodes HTML entities using the modern browser DOMParser API.
+ * Includes a lightweight fallback for SSR / non-browser environments.
  */
 export function decodeHtmlEntities(text: string): string {
   if (!text) return "";
+
+  if (typeof DOMParser !== "undefined") {
+    try {
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      return doc.documentElement.textContent || "";
+    } catch {
+      return text;
+    }
+  }
+
+  // Fallback for SSR / Node environments
   return text
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')

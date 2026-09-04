@@ -44,3 +44,23 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to view the 
 npm run build
 npm start
 ```
+
+---
+
+## 📐 Architecture & Key Decisions
+
+- **Server-Side API Proxy (BFF):** Routes all message traffic through Next.js server Route Handlers to protect the Bearer token and eliminate browser CORS friction.
+- **Adaptive Polling & Visibility API:** Polls `GET /api/v1/messages?after=<timestamp>` every 3–4s, pausing when the tab is backgrounded to conserve CPU and network resources.
+- **Optimistic UI:** Immediately displays outgoing messages with pending/failed states and retry support.
+- **Accessibility:** Live region (`aria-live="polite"`), semantic markup, and keyboard-first interaction.
+
+👉 **Read the full rationale, decisions, and trade-offs in [docs/DECISIONS.md](docs/DECISIONS.md)**.
+
+---
+
+## 📚 Documentation
+
+- [Key Technical Decisions](docs/DECISIONS.md) — Technical choices, trade-offs, and production roadmap.
+- [Challenge Brief & Requirements](docs/requirements/README.md) — Original challenge prompt, API specs, and design assets.
+
+

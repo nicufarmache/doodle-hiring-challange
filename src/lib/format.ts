@@ -1,4 +1,4 @@
-const messageDateFormatter = new Intl.DateTimeFormat("en-US", {
+const messageDateFormatter = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "short",
   year: "numeric",
@@ -14,13 +14,7 @@ export function formatMessageTime(isoString: string): string {
   try {
     const date = new Date(isoString);
     if (isNaN(date.getTime())) return "";
-
-    const parts = Object.fromEntries(
-      messageDateFormatter.formatToParts(date).map((p) => [p.type, p.value])
-    );
-
-    const hour = parseInt(parts.hour, 10);
-    return `${parts.day} ${parts.month} ${parts.year} ${hour}:${parts.minute}`;
+    return messageDateFormatter.format(date).replace(",", "");
   } catch {
     return "";
   }

@@ -21,7 +21,7 @@ Since the challenge brief provides a minimal specification, the following engine
 
 | Topic | Assumption | Rationale |
 | :--- | :--- | :--- |
-| **User Identity** | The user chooses a display name upon first load (persisted to `localStorage`). | The API expects an `author` string in POST requests. Giving the user an author name picker allows testing multi-user chat behavior naturally. |
+| **User Identity** | The user identity defaults to "You" and is customizable via URL query param (`?author=...`) or inline change prompt without `localStorage`. | Eliminates storage sync complexity, avoids SSR hydration divergence, and allows testing multiple users simultaneously across separate tabs. |
 | **Backend Availability** | The backend API is configured in an env var `CHAT_API_URL`. | Keeps development decoupled from external network conditions. |
 | **Pagination & History** | Initial load fetches recent messages; older messages can be loaded by querying timestamps before the oldest message. | The API supports `GET /api/v1/messages?after=<timestamp>&limit=<number>` in reverse chronological order. |
 | **Realtime Updates** | Sync must be handled via intelligent polling. | The provided backend specification only exposes REST endpoints (no WebSocket / Server-Sent Events). |

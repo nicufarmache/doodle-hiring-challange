@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
 import { MessageItem } from "@/components/MessageItem";
 import { Button, Input } from "@/components/ui";
@@ -10,12 +10,13 @@ import { useChat } from "@/hooks/useChat";
 
 function ChatApp() {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
-  // Author defaults to "You", customizable via ?author=YourName
-  const author = searchParams.get("author")?.trim() || "You";
-
+  // If ?author=Name is provided in the URL query, start with it; otherwise require user entry
+  const initialAuthor = searchParams.get("author")?.trim() || "";
+  const [author, setAuthor] = useState<string | null>(initialAuthor || null);
+  const [usernameInput, setUsernameInput] = useState("");
   const [messageInput, setMessageInput] = useState("");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isNearBottomRef = useRef(true);
@@ -31,20 +32,24 @@ function ChatApp() {
     refresh,
   } = useChat(author);
 
-  const handleAuthorChange = (newAuthor: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("author", newAuthor);
-    router.push(`/?${params.toString()}`);
+  const handleSetUsername = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = usernameInput.trim();
+    if (!trimmed) return;
+    setAuthor(trimmed);
   };
 
-  // Track if user is scrolled near bottom
+  const handleResetUsername = () => {
+    setUsernameInput(author || "");
+    setAuthor(null);
+  };
+
   const handleScroll = () => {
     if (!mainRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = mainRef.current;
     isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 120;
   };
 
-  // Auto-scroll to latest message if near bottom
   useEffect(() => {
     if (isNearBottomRef.current && messages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -54,7 +59,7 @@ function ChatApp() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = messageInput.trim();
-    if (!text) return;
+    if (!text || !author) return;
 
     setMessageInput("");
     isNearBottomRef.current = true;
@@ -64,7 +69,7 @@ function ChatApp() {
   return (
     <div className="flex flex-col h-dvh overflow-hidden">
       {/* Top Header */}
-      <Header currentUser={author} onAuthorChange={handleAuthorChange} />
+      <Header currentUser={author} onAuthorChange={handleResetUsername} />
 
       {/* Error notification banner if fetch failed */}
       {error && (
@@ -81,7 +86,7 @@ function ChatApp() {
         </div>
       )}
 
-      {/* Main Chat Stream Container (Mobile-first, max 640px, 24px gutters) */}
+      {/* Main Chat Stream Container (Messages always visible) */}
       <main
         ref={mainRef}
         onScroll={handleScroll}
@@ -103,13 +108,14 @@ function ChatApp() {
               Welcome to Doodle Chat!
             </h2>
             <p className="text-xs text-[#8c9ba5] mt-1 max-w-xs">
-              No messages yet. Send a message below to start chatting.
+              No messages yet. Choose a name below to start chatting.
             </p>
           </div>
         ) : (
           <>
             {messages.map((msg) => {
               const isSelf =
+                !!author &&
                 msg.author.trim().toLowerCase() === author.trim().toLowerCase();
               return (
                 <MessageItem
@@ -126,29 +132,56 @@ function ChatApp() {
         )}
       </main>
 
-      {/* Bottom Message Input Bar (Exact 8px mobile padding, #1c8fca blue, 640px max width) */}
+      {/* Bottom Bar: Username Entry Form until chosen, then Message Input Bar */}
       <footer className="w-full bg-[#1c8fca] shrink-0 shadow-xs">
-        <form
-          onSubmit={handleSendMessage}
-          className="w-full max-w-[640px] mx-auto px-2 sm:px-6 py-2 flex items-center gap-2"
-        >
-          <Input
-            type="text"
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            placeholder="Message"
-            aria-label="Chat message"
-            className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
-          />
-          <Button
-            type="submit"
-            size="md"
-            disabled={!messageInput.trim()}
-            className="rounded-[3px] px-6 active:scale-98"
+        {author ? (
+          <form
+            onSubmit={handleSendMessage}
+            className="w-full max-w-[640px] mx-auto px-2 sm:px-6 py-2 flex items-center gap-2"
           >
-            {isSending ? "Sending..." : "Send"}
-          </Button>
-        </form>
+            <Input
+              type="text"
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              placeholder="Message"
+              aria-label="Chat message"
+              autoFocus
+              className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
+            />
+            <Button
+              type="submit"
+              size="md"
+              disabled={!messageInput.trim()}
+              className="rounded-[3px] px-6 active:scale-98"
+            >
+              {isSending ? "Sending..." : "Send"}
+            </Button>
+          </form>
+        ) : (
+          <form
+            onSubmit={handleSetUsername}
+            className="w-full max-w-[640px] mx-auto px-2 sm:px-6 py-2 flex items-center gap-2"
+          >
+            <Input
+              type="text"
+              value={usernameInput}
+              onChange={(e) => setUsernameInput(e.target.value)}
+              placeholder="Enter your name to join..."
+              aria-label="Your display name"
+              autoFocus
+              maxLength={30}
+              className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
+            />
+            <Button
+              type="submit"
+              size="md"
+              disabled={!usernameInput.trim()}
+              className="rounded-[3px] px-6 active:scale-98 whitespace-nowrap"
+            >
+              Join
+            </Button>
+          </form>
+        )}
       </footer>
     </div>
   );

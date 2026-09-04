@@ -35,7 +35,7 @@ export function MessageItem({
             : `Your message sent at ${formattedTime}`
         }
       >
-        <p className="text-sm sm:text-base text-[#3d4146] leading-relaxed break-words">
+        <p className="text-sm sm:text-base text-[#3d4146] leading-relaxed break-words whitespace-pre-wrap">
           {cleanMessage}
         </p>
 
@@ -88,10 +88,10 @@ export function MessageItem({
       className="self-start flex flex-col max-w-[240px] sm:max-w-[420px] bg-white border border-zinc-200 rounded-[3px] p-4 shadow-2xs transition-opacity"
       aria-label={`Message from ${message.author} sent at ${formattedTime}`}
     >
-      <span className="text-xs text-[#8c9ba5] font-medium mb-1">
+      <span className="text-xs text-[#8c9ba5] font-medium mb-1 truncate block">
         {message.author}
       </span>
-      <p className="text-sm sm:text-base text-[#3d4146] leading-relaxed break-words">
+      <p className="text-sm sm:text-base text-[#3d4146] leading-relaxed break-words whitespace-pre-wrap">
         {cleanMessage}
       </p>
       <time

@@ -54,6 +54,9 @@ npm test          # Run unit & API integration tests
 npm run test:e2e  # Run Playwright browser E2E tests
 ```
 
+> **Note:** Ensure the local dev server (`npm run dev` on port 3000/3001/3002) and the upstream chat API backend are running before executing integration and E2E tests.
+
+
 ---
 
 ## 📐 Architecture & Key Decisions

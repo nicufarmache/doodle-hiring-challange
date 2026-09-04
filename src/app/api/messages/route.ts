@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       // Default: fetch the most recent messages (the last X messages)
       // Upstream API only sorts in reverse chronological order when `before` is set.
       // Providing a near-future boundary queries the latest messages ending at the present.
-      targetUrl.searchParams.set("before", new Date(Date.now() + 60_000).toISOString());
+      targetUrl.searchParams.set("before", new Date(Date.now() + 300_000).toISOString());
     }
     if (limit) targetUrl.searchParams.set("limit", limit);
 
@@ -106,7 +106,8 @@ export async function POST(request: NextRequest) {
 
   // 4. Proxy request to upstream Doodle Chat API with secure Bearer token
   try {
-    const upstreamResponse = await fetch(`${CHAT_API_URL}/api/v1/messages`, {
+    const targetUrl = new URL("/api/v1/messages", CHAT_API_URL);
+    const upstreamResponse = await fetch(targetUrl.toString(), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${CHAT_API_TOKEN}`,

@@ -18,10 +18,13 @@ export function Header({ currentUser, onAuthorChange }: HeaderProps) {
 
         {currentUser ? (
           <div className="flex items-center gap-2 text-xs sm:text-sm text-[#8c9ba5]">
-            <span className="inline-flex items-center gap-1.5">
-              <UserIcon className="w-3.5 h-3.5 text-[#8c9ba5]" />
-              <span>
-                Chatting as <strong className="font-semibold text-[#3d4146]">{currentUser}</strong>
+            <span className="inline-flex items-center gap-1.5 min-w-0">
+              <UserIcon className="w-3.5 h-3.5 text-[#8c9ba5] shrink-0" />
+              <span className="truncate">
+                Chatting as{" "}
+                <strong className="font-semibold text-[#3d4146] truncate max-w-[110px] sm:max-w-[200px] inline-block align-bottom">
+                  {currentUser}
+                </strong>
               </span>
             </span>
             {onAuthorChange && (

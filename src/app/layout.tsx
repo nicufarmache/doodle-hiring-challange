@@ -17,7 +17,11 @@ export const metadata: Metadata = {
   description: "A chat application built for the Doodle frontend engineer challenge",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="en"

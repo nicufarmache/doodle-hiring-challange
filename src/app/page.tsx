@@ -12,7 +12,7 @@ function ChatApp() {
   const searchParams = useSearchParams();
 
   // If ?author=Name is provided in the URL query, start with it; otherwise require user entry
-  const initialAuthor = searchParams.get("author")?.trim() || "";
+  const initialAuthor = searchParams.get("author")?.trim().slice(0, 30) || "";
   const [author, setAuthor] = useState<string | null>(initialAuthor || null);
   const [usernameInput, setUsernameInput] = useState("");
   const [messageInput, setMessageInput] = useState("");

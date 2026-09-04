@@ -1,32 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
+import { MessageItem } from "@/components/MessageItem";
 import { Button, Input } from "@/components/ui";
 import { ChatOutlineIcon } from "@/components/icons";
+import { useChat } from "@/hooks/useChat";
 import { getStoredUser, useCurrentUser } from "@/lib/user";
 
 export default function ChatPage() {
   const router = useRouter();
   const currentUser = useCurrentUser();
   const [messageInput, setMessageInput] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // If no user exists in localStorage on the client, redirect to landing page
     const stored = getStoredUser();
     if (!stored) {
       router.replace("/");
     }
   }, [router]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageInput.trim()) return;
-    setMessageInput("");
-  };
-
   const displayName = currentUser || (typeof window !== "undefined" ? getStoredUser() : null);
+
+  const {
+    messages,
+    isLoading,
+    isSending,
+    error,
+    sendMessage,
+    refresh,
+  } = useChat(displayName);
+
+  // Auto-scroll to latest message when messages array updates
+  useEffect(() => {
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = messageInput.trim();
+    if (!text || isSending) return;
+
+    setMessageInput("");
+    await sendMessage(text);
+  };
 
   if (!displayName) {
     return (
@@ -44,24 +65,54 @@ export default function ChatPage() {
       {/* Top Header */}
       <Header currentUser={displayName} />
 
+      {/* Error notification banner if fetch failed */}
+      {error && (
+        <div className="w-full max-w-[640px] mx-auto px-6 pt-3">
+          <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-[3px] flex items-center justify-between">
+            <span>{error}</span>
+            <button
+              onClick={refresh}
+              className="underline font-medium hover:text-red-900 cursor-pointer ml-2"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Chat Stream Container (Mobile-first, max 640px, 24px gutters) */}
       <main
-        className="flex-1 w-full max-w-[640px] mx-auto px-6 flex flex-col justify-end overflow-y-auto py-4"
+        className="flex-1 w-full max-w-[640px] mx-auto px-6 flex flex-col justify-start overflow-y-auto py-4 space-y-4"
         aria-live="polite"
         role="log"
       >
-        {/* Empty State Placeholder */}
-        <div className="flex flex-col items-center justify-center my-auto text-center p-6 bg-white/95 backdrop-blur-2xs rounded-[3px] border border-zinc-200 shadow-2xs">
-          <div className="w-12 h-12 rounded-full bg-blue-50 text-[#1c8fca] flex items-center justify-center mb-3">
-            <ChatOutlineIcon className="w-6 h-6" />
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center my-auto text-[#8c9ba5] text-sm">
+            <div className="w-5 h-5 border-2 border-[#1c8fca] border-t-transparent rounded-full animate-spin mb-2" />
+            <span>Loading conversation...</span>
           </div>
-          <h2 className="text-base font-semibold text-[#3d4146]">
-            Welcome to the chat, {displayName}!
-          </h2>
-          <p className="text-xs text-[#8c9ba5] mt-1 max-w-xs">
-            No messages to display right now. Use the input below to start the conversation.
-          </p>
-        </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center my-auto text-center p-6 bg-white/95 backdrop-blur-2xs rounded-[3px] border border-zinc-200 shadow-2xs">
+            <div className="w-12 h-12 rounded-full bg-blue-50 text-[#1c8fca] flex items-center justify-center mb-3">
+              <ChatOutlineIcon className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-semibold text-[#3d4146]">
+              Welcome to the chat, {displayName}!
+            </h2>
+            <p className="text-xs text-[#8c9ba5] mt-1 max-w-xs">
+              No messages to display right now. Use the input below to start the conversation.
+            </p>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg) => {
+              const isSelf =
+                msg.author.trim().toLowerCase() === displayName.trim().toLowerCase();
+              return <MessageItem key={msg._id} message={msg} isSelf={isSelf} />;
+            })}
+            <div ref={messagesEndRef} />
+          </>
+        )}
       </main>
 
       {/* Bottom Message Input Bar (Exact 8px mobile padding, #1c8fca blue, 640px max width) */}
@@ -76,14 +127,16 @@ export default function ChatPage() {
             onChange={(e) => setMessageInput(e.target.value)}
             placeholder="Message"
             aria-label="Chat message"
+            disabled={isSending}
             className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
           />
           <Button
             type="submit"
             size="md"
+            disabled={isSending || !messageInput.trim()}
             className="rounded-[3px] px-6 active:scale-98"
           >
-            Send
+            {isSending ? "Sending..." : "Send"}
           </Button>
         </form>
       </footer>

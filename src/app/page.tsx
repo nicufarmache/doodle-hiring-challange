@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
 import { MessageItem } from "@/components/MessageItem";
 import { Button, Input } from "@/components/ui";
-import { ChatOutlineIcon } from "@/components/icons";
+import { ArrowRightIcon, ChatOutlineIcon, UserIcon } from "@/components/icons";
 import { useChat } from "@/hooks/useChat";
 
 function ChatApp() {
@@ -17,6 +17,8 @@ function ChatApp() {
   const [usernameInput, setUsernameInput] = useState("");
   const [messageInput, setMessageInput] = useState("");
 
+  const messageInputRef = useRef<HTMLInputElement>(null);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isNearBottomRef = useRef(true);
@@ -31,6 +33,15 @@ function ChatApp() {
     dismissMessage,
     refresh,
   } = useChat(author);
+
+  // Automatically focus message input when author is set, or username input when resetting
+  useEffect(() => {
+    if (author) {
+      messageInputRef.current?.focus();
+    } else {
+      usernameInputRef.current?.focus();
+    }
+  }, [author]);
 
   const handleSetUsername = (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,20 +143,20 @@ function ChatApp() {
         )}
       </main>
 
-      {/* Bottom Bar: Username Entry Form until chosen, then Message Input Bar */}
-      <footer className="w-full bg-[#1c8fca] shrink-0 shadow-xs">
-        {author ? (
+      {/* Bottom Dock: Distinct Login Form OR Standard Message Bar */}
+      {author ? (
+        <footer className="w-full bg-[#1c8fca] shrink-0 shadow-xs">
           <form
             onSubmit={handleSendMessage}
             className="w-full max-w-[640px] mx-auto px-2 sm:px-6 py-2 flex items-center gap-2"
           >
             <Input
+              ref={messageInputRef}
               type="text"
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder="Message"
               aria-label="Chat message"
-              autoFocus
               className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
             />
             <Button
@@ -157,32 +168,51 @@ function ChatApp() {
               {isSending ? "Sending..." : "Send"}
             </Button>
           </form>
-        ) : (
+        </footer>
+      ) : (
+        <footer className="w-full bg-white/95 backdrop-blur-xs border-t border-zinc-200/90 py-3 shadow-lg shrink-0">
           <form
             onSubmit={handleSetUsername}
-            className="w-full max-w-[640px] mx-auto px-2 sm:px-6 py-2 flex items-center gap-2"
+            className="w-full max-w-[640px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3"
           >
-            <Input
-              type="text"
-              value={usernameInput}
-              onChange={(e) => setUsernameInput(e.target.value)}
-              placeholder="Enter your name to join..."
-              aria-label="Your display name"
-              autoFocus
-              maxLength={30}
-              className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
-            />
-            <Button
-              type="submit"
-              size="md"
-              disabled={!usernameInput.trim()}
-              className="rounded-[3px] px-6 active:scale-98 whitespace-nowrap"
-            >
-              Join
-            </Button>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="w-8 h-8 rounded-full bg-sky-50 text-[#1c8fca] flex items-center justify-center shrink-0">
+                <UserIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs sm:text-sm font-semibold text-[#3d4146] leading-tight">
+                  Join the conversation
+                </p>
+                <p className="text-[11px] text-[#8c9ba5] leading-tight mt-0.5">
+                  Enter your display name to send messages
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-1 sm:max-w-xs">
+              <Input
+                ref={usernameInputRef}
+                type="text"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder="e.g. John Doe"
+                aria-label="Your display name"
+                maxLength={30}
+                className="flex-1 rounded-[3px] h-[38px] text-xs sm:text-sm"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!usernameInput.trim()}
+                className="rounded-[3px] h-[38px] px-4 font-medium whitespace-nowrap active:scale-98"
+              >
+                <span>Join</span>
+                <ArrowRightIcon className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            </div>
           </form>
-        )}
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

@@ -1,22 +1,26 @@
+const messageDateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 /**
- * Formats ISO timestamp to match design mockup: "10 Mar 2018 9:55"
+ * Formats ISO timestamp using Intl.DateTimeFormat to match design mockup: "10 Mar 2018 9:55"
  */
 export function formatMessageTime(isoString: string): string {
   try {
     const date = new Date(isoString);
     if (isNaN(date.getTime())) return "";
 
-    const day = date.getDate();
-    const months = [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    ];
-    const month = months[date.getMonth()];
-    const year = date.getFullYear();
-    const hours = date.getHours();
-    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const parts = Object.fromEntries(
+      messageDateFormatter.formatToParts(date).map((p) => [p.type, p.value])
+    );
 
-    return `${day} ${month} ${year} ${hours}:${minutes}`;
+    const hour = parseInt(parts.hour, 10);
+    return `${parts.day} ${parts.month} ${parts.year} ${hour}:${parts.minute}`;
   } catch {
     return "";
   }

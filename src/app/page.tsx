@@ -5,15 +5,18 @@ import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Button, Input } from "@/components/ui";
 import { ArrowRightIcon, ChatBubbleIcon } from "@/components/icons";
+import { useHydrated } from "@/hooks/useHydrated";
 import { useCurrentUser, setStoredUser } from "@/lib/user";
 
 export default function LandingPage() {
   const router = useRouter();
+  const isHydrated = useHydrated();
   const existingUser = useCurrentUser();
   const [inputName, setInputName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const currentName = inputName !== null ? inputName : (existingUser ?? "");
+  const currentName =
+    inputName !== null ? inputName : isHydrated ? existingUser ?? "" : "";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,12 +89,12 @@ export default function LandingPage() {
             </div>
 
             <Button type="submit" fullWidth size="lg">
-              <span>{existingUser ? "Continue to Chat" : "Enter Chat"}</span>
+              <span>{isHydrated && existingUser ? "Continue to Chat" : "Enter Chat"}</span>
               <ArrowRightIcon className="w-4 h-4" />
             </Button>
           </form>
 
-          {existingUser && (
+          {isHydrated && existingUser && (
             <p className="text-center text-xs text-zinc-500 mt-4">
               Currently saved as <strong className="text-zinc-700">{existingUser}</strong>.
             </p>

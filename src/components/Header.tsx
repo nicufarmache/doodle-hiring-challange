@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { UserIcon } from "@/components/icons";
 import { useCurrentUser } from "@/lib/user";
+import { useHydrated } from "@/hooks/useHydrated";
 
 interface HeaderProps {
   currentUser?: string | null;
@@ -10,7 +11,10 @@ interface HeaderProps {
 
 export function Header({ currentUser: explicitUser }: HeaderProps) {
   const storeUser = useCurrentUser();
-  const user = explicitUser !== undefined ? explicitUser : storeUser;
+  const isHydrated = useHydrated();
+
+  // Avoid SSR hydration mismatch by only rendering client-persisted user after hydration
+  const user = isHydrated ? (explicitUser !== undefined ? explicitUser : storeUser) : null;
 
   return (
     <header className="w-full bg-white/95 backdrop-blur-xs border-b border-zinc-200/90 sticky top-0 z-10 shadow-2xs">

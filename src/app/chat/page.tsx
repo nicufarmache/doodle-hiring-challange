@@ -7,10 +7,12 @@ import { MessageItem } from "@/components/MessageItem";
 import { Button, Input } from "@/components/ui";
 import { ChatOutlineIcon } from "@/components/icons";
 import { useChat } from "@/hooks/useChat";
+import { useHydrated } from "@/hooks/useHydrated";
 import { getStoredUser, useCurrentUser } from "@/lib/user";
 
 export default function ChatPage() {
   const router = useRouter();
+  const isHydrated = useHydrated();
   const currentUser = useCurrentUser();
   const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -18,13 +20,16 @@ export default function ChatPage() {
   const isNearBottomRef = useRef(true);
 
   useEffect(() => {
-    const stored = getStoredUser();
-    if (!stored) {
-      router.replace("/");
+    if (isHydrated) {
+      const stored = getStoredUser();
+      if (!stored) {
+        router.replace("/");
+      }
     }
-  }, [router]);
+  }, [isHydrated, router]);
 
-  const displayName = currentUser || (typeof window !== "undefined" ? getStoredUser() : null);
+  // Wait for client-side hydration before accessing localStorage-backed user state
+  const displayName = isHydrated ? (currentUser || getStoredUser()) : null;
 
   const {
     messages,

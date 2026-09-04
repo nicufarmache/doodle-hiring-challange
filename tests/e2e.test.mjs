@@ -17,52 +17,44 @@ async function runE2E() {
   const page = await context.newPage();
 
   try {
-    // 1. Visit landing page
-    console.log("1. Visiting landing page...");
+    // 1. Visit root chat page with default author
+    console.log("1. Visiting root chat page with default author...");
     await page.goto(`${BASE_URL}/`, { waitUntil: "networkidle" });
-    const title = await page.locator("h1").innerText();
-    assert.match(title, /Join the Chat/i, "Landing title mismatch");
+    const header = page.locator("header");
+    await header.waitFor({ state: "visible" });
+    const defaultHeaderText = await header.innerText();
+    assert.match(defaultHeaderText, /Chatting as You/, "Default author not 'You'");
 
-    // 2. Submit user display name
-    console.log("2. Submitting display name 'PlaywrightTester'...");
-    const nameInput = page.locator("#display-name");
-    await nameInput.fill("PlaywrightTester");
-    await page.locator('button[type="submit"]').click();
+    // 2. Visit with custom author parameter ?author=PlaywrightTester
+    console.log("2. Visiting with custom ?author=PlaywrightTester...");
+    await page.goto(`${BASE_URL}/?author=PlaywrightTester`, { waitUntil: "networkidle" });
+    const customHeaderText = await header.innerText();
+    assert.match(customHeaderText, /Chatting as PlaywrightTester/, "Custom author mismatch");
 
-    // 3. Arrive at /chat
-    await page.waitForURL("**/chat");
-    console.log("3. Successfully navigated to /chat");
-
-    // Verify header display name
-    const userBadge = page.locator("header");
-    await userBadge.waitFor({ state: "visible" });
-    const headerText = await userBadge.innerText();
-    assert.match(headerText, /PlaywrightTester/, "Header missing user name");
-
-    // 4. Verify messages stream rendered
-    console.log("4. Verifying message feed renders...");
+    // 3. Verify message feed renders immediately (no landing page gate)
+    console.log("3. Verifying message feed renders...");
     await page.waitForSelector("article", { timeout: 8000 });
     const initialCount = await page.locator("article").count();
     assert.ok(initialCount > 0, "No messages loaded in feed");
     console.log(`   Found ${initialCount} initial messages.`);
 
-    // 5. Send optimistic message
-    console.log("5. Testing optimistic message sending...");
+    // 4. Send optimistic message
+    console.log("4. Testing optimistic message sending...");
     const chatInput = page.locator('input[aria-label="Chat message"]');
     const sendMsgText = `E2E Test Message ${Date.now()}`;
     await chatInput.fill(sendMsgText);
     await page.locator('footer button[type="submit"]').click();
 
-    // Verify it appears immediately in the DOM
+    // Verify optimistic self bubble appears immediately
     const optimisticBubble = page.locator(`text="${sendMsgText}"`);
     await optimisticBubble.waitFor({ state: "visible", timeout: 2000 });
-    console.log("   Optimistic bubble appeared immediately!");
+    console.log("   Optimistic self-bubble appeared immediately!");
 
     // Wait for server reconciliation
     await page.waitForTimeout(1500);
 
-    // 6. Test background adaptive polling synchronization
-    console.log("6. Testing background polling sync from external sender...");
+    // 5. Test background adaptive polling sync
+    console.log("5. Testing background polling sync from external sender...");
     const externalText = `External E2E Message ${Date.now()}`;
     const externalRes = await fetch(`${API_URL}/api/v1/messages`, {
       method: "POST",
@@ -82,12 +74,10 @@ async function runE2E() {
     await externalBubble.waitFor({ state: "visible", timeout: 8000 });
     console.log("   Successfully received external message via polling sync!");
 
-    // 7. Test 'Change' display name flow
-    console.log("7. Testing 'Change' user name link...");
-    await page.locator('header a:has-text("Change")').click();
-    await page.waitForURL(`${BASE_URL}/`);
-    const prefilledValue = await page.locator("#display-name").inputValue();
-    assert.equal(prefilledValue, "PlaywrightTester", "User name not pre-filled");
+    // 6. Test legacy /chat redirect to /
+    console.log("6. Testing /chat redirects to /...");
+    await page.goto(`${BASE_URL}/chat`, { waitUntil: "networkidle" });
+    assert.equal(new URL(page.url()).pathname, "/", "Failed to redirect /chat to /");
 
     console.log("\n✅ All E2E verification tests passed successfully!");
   } finally {

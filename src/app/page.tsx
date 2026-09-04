@@ -1,106 +1,172 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
+import { MessageItem } from "@/components/MessageItem";
 import { Button, Input } from "@/components/ui";
-import { ArrowRightIcon, ChatBubbleIcon } from "@/components/icons";
-import { useHydrated } from "@/hooks/useHydrated";
-import { useCurrentUser, setStoredUser } from "@/lib/user";
+import { ChatOutlineIcon } from "@/components/icons";
+import { useChat } from "@/hooks/useChat";
 
-export default function LandingPage() {
+function ChatApp() {
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const isHydrated = useHydrated();
-  const existingUser = useCurrentUser();
-  const [inputName, setInputName] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  const currentName =
-    inputName !== null ? inputName : isHydrated ? existingUser ?? "" : "";
+  // Author defaults to "You", customizable via ?author=YourName
+  const author = searchParams.get("author")?.trim() || "You";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [messageInput, setMessageInput] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const isNearBottomRef = useRef(true);
+
+  const {
+    messages,
+    isLoading,
+    isSending,
+    error,
+    sendMessage,
+    retryMessage,
+    dismissMessage,
+    refresh,
+  } = useChat(author);
+
+  const handleAuthorChange = (newAuthor: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("author", newAuthor);
+    router.push(`/?${params.toString()}`);
+  };
+
+  // Track if user is scrolled near bottom
+  const handleScroll = () => {
+    if (!mainRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = mainRef.current;
+    isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 120;
+  };
+
+  // Auto-scroll to latest message if near bottom
+  useEffect(() => {
+    if (isNearBottomRef.current && messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = currentName.trim();
+    const text = messageInput.trim();
+    if (!text) return;
 
-    if (!trimmed) {
-      setError("Please enter a display name to continue.");
-      return;
-    }
-
-    if (trimmed.length < 2) {
-      setError("Name must be at least 2 characters.");
-      return;
-    }
-
-    if (trimmed.length > 30) {
-      setError("Name cannot exceed 30 characters.");
-      return;
-    }
-
-    setError(null);
-    setStoredUser(trimmed);
-    router.push("/chat");
+    setMessageInput("");
+    isNearBottomRef.current = true;
+    await sendMessage(text);
   };
 
   return (
-    <div className="flex flex-col min-h-dvh">
-      <Header />
+    <div className="flex flex-col h-dvh overflow-hidden">
+      {/* Top Header */}
+      <Header currentUser={author} onAuthorChange={handleAuthorChange} />
 
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-[400px] bg-white/95 backdrop-blur-2xs rounded-[3px] shadow-2xs border border-zinc-200 p-6 sm:p-8">
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sky-50 text-[#1c8fca] mb-3">
-              <ChatBubbleIcon className="w-6 h-6" />
+      {/* Error notification banner if fetch failed */}
+      {error && (
+        <div className="w-full max-w-[640px] mx-auto px-6 pt-3">
+          <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-[3px] flex items-center justify-between">
+            <span>{error}</span>
+            <button
+              onClick={refresh}
+              className="underline font-medium hover:text-red-900 cursor-pointer ml-2"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Chat Stream Container (Mobile-first, max 640px, 24px gutters) */}
+      <main
+        ref={mainRef}
+        onScroll={handleScroll}
+        className="flex-1 w-full max-w-[640px] mx-auto px-6 flex flex-col justify-start overflow-y-auto py-4 space-y-4"
+        aria-live="polite"
+        role="log"
+      >
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center my-auto text-[#8c9ba5] text-sm">
+            <div className="w-5 h-5 border-2 border-[#1c8fca] border-t-transparent rounded-full animate-spin mb-2" />
+            <span>Loading conversation...</span>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center my-auto text-center p-6 bg-white/95 backdrop-blur-2xs rounded-[3px] border border-zinc-200 shadow-2xs">
+            <div className="w-12 h-12 rounded-full bg-blue-50 text-[#1c8fca] flex items-center justify-center mb-3">
+              <ChatOutlineIcon className="w-6 h-6" />
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#3d4146] tracking-tight">
-              Join the Chat
-            </h1>
-            <p className="text-sm text-[#8c9ba5] mt-1.5">
-              Enter your name below to start messaging with the team.
+            <h2 className="text-base font-semibold text-[#3d4146]">
+              Welcome to Doodle Chat!
+            </h2>
+            <p className="text-xs text-[#8c9ba5] mt-1 max-w-xs">
+              No messages yet. Send a message below to start chatting.
             </p>
           </div>
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label
-                htmlFor="display-name"
-                className="block text-xs font-semibold uppercase tracking-wider text-zinc-700 mb-1.5"
-              >
-                Your Display Name
-              </label>
-              <Input
-                id="display-name"
-                type="text"
-                autoFocus
-                value={currentName}
-                onChange={(e) => {
-                  setInputName(e.target.value);
-                  if (error) setError(null);
-                }}
-                placeholder="e.g. John Doe"
-                maxLength={30}
-                error={!!error}
-              />
-              {error && (
-                <p className="text-xs text-red-500 mt-1.5" role="alert">
-                  {error}
-                </p>
-              )}
-            </div>
-
-            <Button type="submit" fullWidth size="lg">
-              <span>{isHydrated && existingUser ? "Continue to Chat" : "Enter Chat"}</span>
-              <ArrowRightIcon className="w-4 h-4" />
-            </Button>
-          </form>
-
-          {isHydrated && existingUser && (
-            <p className="text-center text-xs text-zinc-500 mt-4">
-              Currently saved as <strong className="text-zinc-700">{existingUser}</strong>.
-            </p>
-          )}
-        </div>
+        ) : (
+          <>
+            {messages.map((msg) => {
+              const isSelf =
+                msg.author.trim().toLowerCase() === author.trim().toLowerCase();
+              return (
+                <MessageItem
+                  key={msg._id}
+                  message={msg}
+                  isSelf={isSelf}
+                  onRetry={retryMessage}
+                  onDismiss={dismissMessage}
+                />
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </>
+        )}
       </main>
+
+      {/* Bottom Message Input Bar (Exact 8px mobile padding, #1c8fca blue, 640px max width) */}
+      <footer className="w-full bg-[#1c8fca] shrink-0 shadow-xs">
+        <form
+          onSubmit={handleSendMessage}
+          className="w-full max-w-[640px] mx-auto px-2 sm:px-6 py-2 flex items-center gap-2"
+        >
+          <Input
+            type="text"
+            value={messageInput}
+            onChange={(e) => setMessageInput(e.target.value)}
+            placeholder="Message"
+            aria-label="Chat message"
+            className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
+          />
+          <Button
+            type="submit"
+            size="md"
+            disabled={!messageInput.trim()}
+            className="rounded-[3px] px-6 active:scale-98"
+          >
+            {isSending ? "Sending..." : "Send"}
+          </Button>
+        </form>
+      </footer>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col h-dvh overflow-hidden">
+          <Header />
+          <main className="flex-1 w-full max-w-[640px] mx-auto px-6 flex items-center justify-center">
+            <div className="text-[#8c9ba5] text-sm animate-pulse">Loading chat...</div>
+          </main>
+        </div>
+      }
+    >
+      <ChatApp />
+    </Suspense>
   );
 }

@@ -13,10 +13,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const after = searchParams.get("after");
+    const before = searchParams.get("before");
     const limit = searchParams.get("limit");
 
     const targetUrl = new URL("/api/v1/messages", CHAT_API_URL);
     if (after) targetUrl.searchParams.set("after", after);
+    if (before) targetUrl.searchParams.set("before", before);
     if (limit) targetUrl.searchParams.set("limit", limit);
 
     const upstreamResponse = await fetch(targetUrl.toString(), {

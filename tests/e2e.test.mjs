@@ -32,6 +32,16 @@ async function runE2E() {
     assert.ok(initialCount > 0, "Messages should be visible even before joining");
     console.log(`   Found ${initialCount} initial messages displayed.`);
 
+    const loadOlderBtn = page.locator('button:has-text("Load earlier messages")');
+    if (await loadOlderBtn.isVisible()) {
+      console.log("   Testing 'Load earlier messages' pagination...");
+      await loadOlderBtn.click();
+      await page.waitForTimeout(1000);
+      const afterPaginationCount = await page.locator("article").count();
+      console.log(`   Message count after loading earlier: ${afterPaginationCount}`);
+      assert.ok(afterPaginationCount >= initialCount, "Message count should not decrease after pagination");
+    }
+
     // 3. Verify bottom bar has username entry form
     console.log("3. Submitting username via bottom entry bar...");
     const nameInput = page.locator('input[aria-label="Your display name"]');

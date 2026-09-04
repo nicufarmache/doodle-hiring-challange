@@ -8,14 +8,19 @@ export interface UseChatReturn {
   isLoading: boolean;
   error: string | null;
   isSending: boolean;
+  isLoadingOlder: boolean;
+  hasMoreOlder: boolean;
   sendMessage: (messageText: string) => Promise<boolean>;
   retryMessage: (tempId: string) => Promise<boolean>;
   dismissMessage: (tempId: string) => void;
+  loadOlderMessages: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
 const BASE_POLL_INTERVAL_MS = 3000;
 const MAX_POLL_INTERVAL_MS = 30000;
+const INITIAL_LIMIT = 25;
+const PAGINATION_LIMIT = 15;
 
 function sortByCreatedAt(a: ChatMessage, b: ChatMessage): number {
   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -26,8 +31,11 @@ export function useChat(currentUser: string | null): UseChatReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
 
   const latestTimestampRef = useRef<string | null>(null);
+  const oldestTimestampRef = useRef<string | null>(null);
   const currentIntervalRef = useRef<number>(BASE_POLL_INTERVAL_MS);
   const isSyncingRef = useRef<boolean>(false);
 
@@ -39,7 +47,7 @@ export function useChat(currentUser: string | null): UseChatReturn {
     try {
       const url = latestTimestampRef.current
         ? `/api/messages?after=${encodeURIComponent(latestTimestampRef.current)}`
-        : "/api/messages";
+        : `/api/messages?limit=${INITIAL_LIMIT}`;
 
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -70,12 +78,15 @@ export function useChat(currentUser: string | null): UseChatReturn {
 
           const sorted = Array.from(map.values()).sort(sortByCreatedAt);
 
-          // Update latest non-temporary timestamp
+          // Update latest and oldest timestamps
           for (let i = sorted.length - 1; i >= 0; i--) {
             if (!sorted[i]._id.startsWith("temp-")) {
               latestTimestampRef.current = sorted[i].createdAt;
               break;
             }
+          }
+          if (sorted.length > 0 && !oldestTimestampRef.current) {
+            oldestTimestampRef.current = sorted[0].createdAt;
           }
 
           return sorted;
@@ -97,16 +108,63 @@ export function useChat(currentUser: string | null): UseChatReturn {
     }
   }, []);
 
+  // Fetch older history (pagination)
+  const loadOlderMessages = useCallback(async () => {
+    if (isLoadingOlder || !hasMoreOlder || !oldestTimestampRef.current) return;
+    setIsLoadingOlder(true);
+
+    try {
+      const url = `/api/messages?before=${encodeURIComponent(
+        oldestTimestampRef.current
+      )}&limit=${PAGINATION_LIMIT}`;
+
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const olderData: ChatMessage[] = await res.json();
+
+      if (!Array.isArray(olderData) || olderData.length === 0) {
+        setHasMoreOlder(false);
+      } else {
+        if (olderData.length < PAGINATION_LIMIT) {
+          setHasMoreOlder(false);
+        }
+
+        const sortedOlder = olderData.sort(sortByCreatedAt);
+        oldestTimestampRef.current = sortedOlder[0].createdAt;
+
+        setMessages((prev) => {
+          const map = new Map<string, OptimisticChatMessage>();
+          for (const m of sortedOlder) {
+            map.set(m._id, m);
+          }
+          for (const m of prev) {
+            map.set(m._id, m);
+          }
+          return Array.from(map.values()).sort(sortByCreatedAt);
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load older messages:", err);
+      setError("Unable to load earlier messages.");
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [hasMoreOlder, isLoadingOlder]);
+
   // Full manual refresh
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/messages", { cache: "no-store" });
+      const res = await fetch(`/api/messages?limit=${INITIAL_LIMIT}`, {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ChatMessage[] = await res.json();
       const sorted = (Array.isArray(data) ? data : []).sort(sortByCreatedAt);
       setMessages(sorted);
       if (sorted.length > 0) {
         latestTimestampRef.current = sorted[sorted.length - 1].createdAt;
+        oldestTimestampRef.current = sorted[0].createdAt;
       }
       currentIntervalRef.current = BASE_POLL_INTERVAL_MS;
       setError(null);
@@ -243,7 +301,9 @@ export function useChat(currentUser: string | null): UseChatReturn {
 
     async function init() {
       try {
-        const res = await fetch("/api/messages", { cache: "no-store" });
+        const res = await fetch(`/api/messages?limit=${INITIAL_LIMIT}`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: ChatMessage[] = await res.json();
         if (isSubscribed) {
@@ -251,6 +311,10 @@ export function useChat(currentUser: string | null): UseChatReturn {
           setMessages(sorted);
           if (sorted.length > 0) {
             latestTimestampRef.current = sorted[sorted.length - 1].createdAt;
+            oldestTimestampRef.current = sorted[0].createdAt;
+          }
+          if (sorted.length < INITIAL_LIMIT) {
+            setHasMoreOlder(false);
           }
           setError(null);
         }
@@ -324,9 +388,12 @@ export function useChat(currentUser: string | null): UseChatReturn {
     isLoading,
     error,
     isSending,
+    isLoadingOlder,
+    hasMoreOlder,
     sendMessage,
     retryMessage,
     dismissMessage,
+    loadOlderMessages,
     refresh,
   };
 }

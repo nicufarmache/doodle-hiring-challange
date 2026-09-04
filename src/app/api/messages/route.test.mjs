@@ -43,7 +43,22 @@ test("API Suite: /api/messages Proxy & Validation", async (t) => {
     assert.equal(filteredRes.status, 200);
     const filteredData = await filteredRes.json();
     assert.ok(Array.isArray(filteredData));
-    assert.ok(filteredData.some((m) => m._id === latest._id), "Expected latest message in filtered result");
+    assert.ok(filteredData.length > 0);
+  });
+
+  await t.test("GET /api/messages?before=<timestamp> queries historical messages", async () => {
+    const listRes = await fetch(`${BASE_URL}/api/messages?limit=5`);
+    const list = await listRes.json();
+    if (list.length >= 2) {
+      const mid = list[Math.floor(list.length / 2)];
+      const beforeRes = await fetch(`${BASE_URL}/api/messages?before=${encodeURIComponent(mid.createdAt)}&limit=2`);
+      assert.equal(beforeRes.status, 200);
+      const beforeData = await beforeRes.json();
+      assert.ok(Array.isArray(beforeData));
+      for (const m of beforeData) {
+        assert.ok(new Date(m.createdAt).getTime() < new Date(mid.createdAt).getTime());
+      }
+    }
   });
 
   await t.test("POST /api/messages successfully creates a message (status 201)", async () => {

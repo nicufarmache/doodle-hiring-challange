@@ -16,21 +16,26 @@ function ChatApp() {
   const [author, setAuthor] = useState<string | null>(initialAuthor || null);
   const [usernameInput, setUsernameInput] = useState("");
   const [messageInput, setMessageInput] = useState("");
+  const [unreadBelow, setUnreadBelow] = useState(false);
 
   const messageInputRef = useRef<HTMLInputElement>(null);
   const usernameInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isNearBottomRef = useRef(true);
+  const prevMessagesCountRef = useRef(0);
 
   const {
     messages,
     isLoading,
     isSending,
+    isLoadingOlder,
+    hasMoreOlder,
     error,
     sendMessage,
     retryMessage,
     dismissMessage,
+    loadOlderMessages,
     refresh,
   } = useChat(author);
 
@@ -58,14 +63,47 @@ function ChatApp() {
   const handleScroll = () => {
     if (!mainRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = mainRef.current;
-    isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 120;
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
+    isNearBottomRef.current = nearBottom;
+    if (nearBottom && unreadBelow) {
+      setUnreadBelow(false);
+    }
   };
 
+  // Detect when incoming messages arrive while scrolled up
   useEffect(() => {
-    if (isNearBottomRef.current && messages.length > 0) {
+    if (messages.length > prevMessagesCountRef.current && prevMessagesCountRef.current > 0) {
+      if (isNearBottomRef.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      } else {
+        setUnreadBelow(true);
+      }
+    } else if (prevMessagesCountRef.current === 0 && messages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+    prevMessagesCountRef.current = messages.length;
+  }, [messages.length, unreadBelow]);
+
+  const scrollToBottom = () => {
+    setUnreadBelow(false);
+    isNearBottomRef.current = true;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleLoadOlder = async () => {
+    if (!mainRef.current || isLoadingOlder) return;
+    const prevScrollHeight = mainRef.current.scrollHeight;
+    const prevScrollTop = mainRef.current.scrollTop;
+
+    await loadOlderMessages();
+
+    requestAnimationFrame(() => {
+      if (mainRef.current) {
+        const newScrollHeight = mainRef.current.scrollHeight;
+        mainRef.current.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+      }
+    });
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,11 +112,12 @@ function ChatApp() {
 
     setMessageInput("");
     isNearBottomRef.current = true;
+    setUnreadBelow(false);
     await sendMessage(text);
   };
 
   return (
-    <div className="flex flex-col h-dvh overflow-hidden">
+    <div className="flex flex-col h-dvh overflow-hidden relative">
       {/* Top Header */}
       <Header currentUser={author} onAuthorChange={handleResetUsername} />
 
@@ -105,6 +144,27 @@ function ChatApp() {
         aria-live="polite"
         role="log"
       >
+        {/* Load Earlier Messages Button (Pagination) */}
+        {hasMoreOlder && messages.length > 0 && (
+          <div className="flex justify-center pt-1 pb-2">
+            <button
+              type="button"
+              onClick={handleLoadOlder}
+              disabled={isLoadingOlder}
+              className="text-xs text-[#1c8fca] hover:text-[#136b99] bg-white/95 border border-zinc-200/90 rounded-[3px] px-3.5 py-1.5 shadow-2xs transition-all hover:shadow-xs disabled:opacity-50 cursor-pointer flex items-center gap-2 font-medium"
+            >
+              {isLoadingOlder ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-[#1c8fca] border-t-transparent rounded-full animate-spin" />
+                  <span>Loading earlier messages...</span>
+                </>
+              ) : (
+                <span>↑ Load earlier messages</span>
+              )}
+            </button>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex flex-col items-center justify-center my-auto text-[#8c9ba5] text-sm">
             <div className="w-5 h-5 border-2 border-[#1c8fca] border-t-transparent rounded-full animate-spin mb-2" />
@@ -143,6 +203,20 @@ function ChatApp() {
         )}
       </main>
 
+      {/* Floating Pill: New messages below */}
+      {unreadBelow && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20">
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="bg-[#1c8fca] hover:bg-[#1572a1] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-md flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 animate-bounce"
+            aria-label="Scroll to new messages below"
+          >
+            <span>↓ New messages</span>
+          </button>
+        </div>
+      )}
+
       {/* Bottom Dock: Distinct Login Form OR Standard Message Bar */}
       {author ? (
         <footer className="w-full bg-[#1c8fca] shrink-0 shadow-xs">
@@ -150,20 +224,34 @@ function ChatApp() {
             onSubmit={handleSendMessage}
             className="w-full max-w-[640px] mx-auto px-2 sm:px-6 py-2 flex items-center gap-2"
           >
-            <Input
-              ref={messageInputRef}
-              type="text"
-              value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
-              placeholder="Message"
-              aria-label="Chat message"
-              className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
-            />
+            <div className="flex-1 relative flex items-center">
+              <Input
+                ref={messageInputRef}
+                type="text"
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                placeholder="Message"
+                aria-label="Chat message"
+                maxLength={1000}
+                className="w-full rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80 pr-14"
+              />
+              {messageInput.length > 750 && (
+                <span
+                  className={`absolute right-2 text-[10px] tabular-nums font-mono px-1 py-0.5 rounded ${
+                    messageInput.length >= 950
+                      ? "text-red-700 bg-red-100 font-bold"
+                      : "text-amber-800 bg-amber-100"
+                  }`}
+                >
+                  {messageInput.length}/1000
+                </span>
+              )}
+            </div>
             <Button
               type="submit"
               size="md"
               disabled={!messageInput.trim()}
-              className="rounded-[3px] px-6 active:scale-98"
+              className="rounded-[3px] px-6 active:scale-98 shrink-0"
             >
               {isSending ? "Sending..." : "Send"}
             </Button>

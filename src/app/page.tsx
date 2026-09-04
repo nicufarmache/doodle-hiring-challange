@@ -79,7 +79,9 @@ function ChatApp() {
         setUnreadBelow(true);
       }
     } else if (prevMessagesCountRef.current === 0 && messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (mainRef.current) {
+        mainRef.current.scrollTop = mainRef.current.scrollHeight;
+      }
     }
     prevMessagesCountRef.current = messages.length;
   }, [messages.length, unreadBelow]);

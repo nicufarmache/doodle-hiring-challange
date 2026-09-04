@@ -41,14 +41,11 @@ export function useChat(currentUser: string | null): UseChatReturn {
 
   // Sync new messages from the server using the ?after timestamp
   const syncNewMessages = useCallback(async () => {
-    if (isSyncingRef.current) return;
+    if (isSyncingRef.current || !latestTimestampRef.current) return;
     isSyncingRef.current = true;
 
     try {
-      const url = latestTimestampRef.current
-        ? `/api/messages?after=${encodeURIComponent(latestTimestampRef.current)}`
-        : `/api/messages?limit=${INITIAL_LIMIT}`;
-
+      const url = `/api/messages?after=${encodeURIComponent(latestTimestampRef.current)}`;
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -295,14 +292,36 @@ export function useChat(currentUser: string | null): UseChatReturn {
     setMessages((prev) => prev.filter((m) => m._id !== tempId));
   }, []);
 
-  // Initial fetch on mount
+  // Lifecycle: single initial fetch, with polling scheduled ONLY after initialization
   useEffect(() => {
     let isSubscribed = true;
+    let timerId: NodeJS.Timeout | null = null;
+
+    const schedulePoll = () => {
+      if (timerId) clearTimeout(timerId);
+      timerId = setTimeout(async () => {
+        if (!isSubscribed) return;
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          return;
+        }
+        await syncNewMessages();
+        if (
+          isSubscribed &&
+          typeof document !== "undefined" &&
+          document.visibilityState === "visible"
+        ) {
+          schedulePoll();
+        }
+      }, currentIntervalRef.current);
+    };
+
+    const abortController = new AbortController();
 
     async function init() {
       try {
         const res = await fetch(`/api/messages?limit=${INITIAL_LIMIT}`, {
           cache: "no-store",
+          signal: abortController.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: ChatMessage[] = await res.json();
@@ -317,8 +336,11 @@ export function useChat(currentUser: string | null): UseChatReturn {
             setHasMoreOlder(false);
           }
           setError(null);
+          // Start polling interval only after initial messages are loaded
+          schedulePoll();
         }
-      } catch (err) {
+      } catch (err: unknown) {
+        if ((err as Error)?.name === "AbortError") return;
         if (isSubscribed) {
           console.error("Initial load failed:", err);
           setError("Unable to load chat messages.");
@@ -332,38 +354,14 @@ export function useChat(currentUser: string | null): UseChatReturn {
 
     init();
 
-    return () => {
-      isSubscribed = false;
-    };
-  }, []);
-
-  // Background polling with Page Visibility and Focus handling
-  useEffect(() => {
-    let isMounted = true;
-    let timerId: NodeJS.Timeout | null = null;
-
-    const runPoll = async () => {
-      if (!isMounted) return;
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return;
-      }
-      await syncNewMessages();
-      if (
-        isMounted &&
-        typeof document !== "undefined" &&
-        document.visibilityState === "visible"
-      ) {
-        timerId = setTimeout(runPoll, currentIntervalRef.current);
-      }
-    };
-
-    timerId = setTimeout(runPoll, currentIntervalRef.current);
-
     const handleVisibilityOrFocus = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
         currentIntervalRef.current = BASE_POLL_INTERVAL_MS;
-        if (timerId) clearTimeout(timerId);
-        runPoll();
+        if (latestTimestampRef.current) {
+          syncNewMessages().then(() => {
+            if (isSubscribed) schedulePoll();
+          });
+        }
       } else {
         if (timerId) {
           clearTimeout(timerId);
@@ -376,7 +374,8 @@ export function useChat(currentUser: string | null): UseChatReturn {
     window.addEventListener("focus", handleVisibilityOrFocus);
 
     return () => {
-      isMounted = false;
+      isSubscribed = false;
+      abortController.abort();
       if (timerId) clearTimeout(timerId);
       document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
       window.removeEventListener("focus", handleVisibilityOrFocus);

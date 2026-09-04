@@ -17,8 +17,16 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get("limit");
 
     const targetUrl = new URL("/api/v1/messages", CHAT_API_URL);
-    if (after) targetUrl.searchParams.set("after", after);
-    if (before) targetUrl.searchParams.set("before", before);
+    if (after) {
+      targetUrl.searchParams.set("after", after);
+    } else if (before) {
+      targetUrl.searchParams.set("before", before);
+    } else {
+      // Default: fetch the most recent messages (the last X messages)
+      // Upstream API only sorts in reverse chronological order when `before` is set.
+      // Providing a near-future boundary queries the latest messages ending at the present.
+      targetUrl.searchParams.set("before", new Date(Date.now() + 60_000).toISOString());
+    }
     if (limit) targetUrl.searchParams.set("limit", limit);
 
     const upstreamResponse = await fetch(targetUrl.toString(), {

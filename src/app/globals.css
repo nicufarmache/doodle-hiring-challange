@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f9fb;
+  --foreground: #3d4146;
+  --doodle-blue: #1c8fca;
+  --doodle-coral: #ff7865;
+  --doodle-coral-hover: #f36b58;
+  --doodle-bubble-self: #fef4c0;
+  --doodle-bubble-self-border: #f0e5a2;
+  --doodle-bubble-other: #ffffff;
+  --doodle-bubble-other-border: #e2e8f0;
+  --doodle-text-muted: #8c9ba5;
 }
 
 @theme inline {
@@ -12,15 +20,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
+  background-color: #f7f9fb;
+  background-image: url('/images/body-bg.png');
+  background-repeat: repeat;
+  background-size: 350px auto;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100dvh;
 }

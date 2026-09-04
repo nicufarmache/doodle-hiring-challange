@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/app/api/messages/route.test.mjs src/lib/format.test.mjs"
+    "test": "node --test src/app/api/messages/route.test.mjs src/lib/format.test.mjs",
+    "test:e2e": "node tests/e2e.test.mjs"
   },
   "dependencies": {
     "next": "16.3.4",

@@ -23,7 +23,8 @@ function ChatApp() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const isNearBottomRef = useRef(true);
-  const prevMessagesCountRef = useRef(0);
+  const prevLatestIdRef = useRef<string | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   const {
     messages,
@@ -70,21 +71,32 @@ function ChatApp() {
     }
   };
 
-  // Detect when incoming messages arrive while scrolled up
+  // Auto-scroll on new messages or show unread indicator when scrolled up
   useEffect(() => {
-    if (messages.length > prevMessagesCountRef.current && prevMessagesCountRef.current > 0) {
+    if (messages.length === 0) return;
+
+    const latestMsg = messages[messages.length - 1];
+
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      prevLatestIdRef.current = latestMsg._id;
+      if (mainRef.current) {
+        mainRef.current.scrollTop = mainRef.current.scrollHeight;
+      }
+      return;
+    }
+
+    // Only react when a NEW message has been appended at the bottom
+    // (ignores prepended older messages from historical pagination)
+    if (latestMsg._id !== prevLatestIdRef.current) {
+      prevLatestIdRef.current = latestMsg._id;
       if (isNearBottomRef.current) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       } else {
         setUnreadBelow(true);
       }
-    } else if (prevMessagesCountRef.current === 0 && messages.length > 0) {
-      if (mainRef.current) {
-        mainRef.current.scrollTop = mainRef.current.scrollHeight;
-      }
     }
-    prevMessagesCountRef.current = messages.length;
-  }, [messages.length, unreadBelow]);
+  }, [messages]);
 
   const scrollToBottom = () => {
     setUnreadBelow(false);

@@ -1,7 +1,21 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 
-const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3002";
+async function resolveBaseUrl() {
+  if (process.env.TEST_BASE_URL) return process.env.TEST_BASE_URL;
+  const candidatePorts = [3000, 3001, 3002];
+  for (const port of candidatePorts) {
+    try {
+      const res = await fetch(`http://localhost:${port}/api/messages`, {
+        signal: AbortSignal.timeout(600),
+      });
+      if (res.status === 200) return `http://localhost:${port}`;
+    } catch {}
+  }
+  return "http://localhost:3002";
+}
+
+const BASE_URL = await resolveBaseUrl();
 const API_URL = process.env.CHAT_API_URL || "http://localhost:3000";
 const TOKEN = process.env.CHAT_API_TOKEN || "super-secret-doodle-token";
 

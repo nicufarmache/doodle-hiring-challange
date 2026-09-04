@@ -14,6 +14,8 @@ export default function ChatPage() {
   const currentUser = useCurrentUser();
   const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const isNearBottomRef = useRef(true);
 
   useEffect(() => {
     const stored = getStoredUser();
@@ -30,22 +32,32 @@ export default function ChatPage() {
     isSending,
     error,
     sendMessage,
+    retryMessage,
+    dismissMessage,
     refresh,
   } = useChat(displayName);
 
-  // Auto-scroll to latest message when messages array updates
+  // Track if user is scrolled near bottom
+  const handleScroll = () => {
+    if (!mainRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = mainRef.current;
+    isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 120;
+  };
+
+  // Auto-scroll to latest message if near bottom or on initial load
   useEffect(() => {
-    if (messages.length > 0) {
+    if (isNearBottomRef.current && messages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages.length]);
+  }, [messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = messageInput.trim();
-    if (!text || isSending) return;
+    if (!text) return;
 
     setMessageInput("");
+    isNearBottomRef.current = true;
     await sendMessage(text);
   };
 
@@ -82,6 +94,8 @@ export default function ChatPage() {
 
       {/* Main Chat Stream Container (Mobile-first, max 640px, 24px gutters) */}
       <main
+        ref={mainRef}
+        onScroll={handleScroll}
         className="flex-1 w-full max-w-[640px] mx-auto px-6 flex flex-col justify-start overflow-y-auto py-4 space-y-4"
         aria-live="polite"
         role="log"
@@ -108,7 +122,15 @@ export default function ChatPage() {
             {messages.map((msg) => {
               const isSelf =
                 msg.author.trim().toLowerCase() === displayName.trim().toLowerCase();
-              return <MessageItem key={msg._id} message={msg} isSelf={isSelf} />;
+              return (
+                <MessageItem
+                  key={msg._id}
+                  message={msg}
+                  isSelf={isSelf}
+                  onRetry={retryMessage}
+                  onDismiss={dismissMessage}
+                />
+              );
             })}
             <div ref={messagesEndRef} />
           </>
@@ -127,13 +149,12 @@ export default function ChatPage() {
             onChange={(e) => setMessageInput(e.target.value)}
             placeholder="Message"
             aria-label="Chat message"
-            disabled={isSending}
             className="flex-1 rounded-[3px] border-none shadow-none focus:ring-2 focus:ring-white/80"
           />
           <Button
             type="submit"
             size="md"
-            disabled={isSending || !messageInput.trim()}
+            disabled={!messageInput.trim()}
             className="rounded-[3px] px-6 active:scale-98"
           >
             {isSending ? "Sending..." : "Send"}

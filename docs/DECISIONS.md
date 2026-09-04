@@ -42,13 +42,18 @@ Since the challenge brief provides a minimal specification, the following engine
 ---
 
 ### 2. Backend-for-Frontend (BFF) API Proxy for Security & CORS
-- **Context:** The Doodle Chat API requires a Bearer token (`super-secret-doodle-token`). Exposing this secret in client-side bundles (`NEXT_PUBLIC_*`) is a security antipattern and can cause CORS issues during development/production.
-- **Decision:** Route all client requests through an internal Next.js Route Handler (`/api/messages`).
-- **Implementation:**
-  - Client makes requests to `/api/messages`.
-  - The Next.js Route Handler attaches the secret `Authorization: Bearer <TOKEN>` on the server side and forwards requests to `CHAT_API_URL`.
+- **Context:** The Doodle Chat API requires a master Bearer token (`super-secret-doodle-token`). Exposing this secret in client bundles (`NEXT_PUBLIC_*`) is a severe security antipattern and triggers browser CORS restrictions.
+- **Decision:** Implement a Next.js Route Handler (`/api/messages/route.ts`) as a Backend-for-Frontend (BFF) proxy for both `GET` and `POST` operations.
+- **Alternatives Considered:**
+  - *Direct Client `fetch`:* Leaks the master token in client bundles and network tabs; exposes backend to CORS issues.
+  - *Next.js Server Actions (`'use server'`):* Good for form mutations, but ill-suited for short-polling (transfers heavy RSC payloads over POST instead of lightweight GETs, lacks standard HTTP caching, and Server Actions are public HTTP endpoints anyway).
+- **Endpoint Protection Strategy:**
+  - **Upstream Secret Isolation:** Master Bearer token is strictly injected server-side and never exposed to the browser.
+  - **Same-Origin / CSRF Protection:** Inspect `Sec-Fetch-Site` and `Origin` headers to reject cross-site requests from untrusted origins.
+  - **Strict Input Validation:** Validate payload types, max lengths (e.g. `message` <= 1000 chars, `author` <= 30 chars), and reject invalid data before contacting the Doodle backend.
+  - **Production Context:** In a full enterprise app with user authentication, the proxy would verify the user's session cookie/JWT prior to appending the backend token.
 - **Trade-offs:**
-  - Adds one local hop, but eliminates token leakage in browser network tabs and prevents CORS issues entirely.
+  - Adds a small local network hop, but completely protects credentials, simplifies client networking, and eliminates CORS.
 
 ---
 
